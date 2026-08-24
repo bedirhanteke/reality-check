@@ -7,52 +7,58 @@ export const PROTOCOL_QUESTIONS: QuestionItem[] = [
     category: 'Concrete Reality',
     prompt: 'What does this person actually do for you on a day-to-day basis?',
     guidanceTip:
-      'Skip vague declarations like "they love me" or "they care." If you cannot list at least two tangible, observable actions from the past month, leave this blank.',
-    placeholder: 'List specific, observable behaviors and deeds...',
+      'Skip vague declarations like "they love me" or "they care." If you cannot list at least two tangible, observable actions from the past month, leave this blank. You love the memory, not the present.',
+    placeholder:
+      'e.g., Regularly checks in on my wellbeing, actively helps during difficult days, keeps scheduled plans without cancelling...',
   },
   {
     id: 'q2',
     stepNumber: 2,
-    category: 'Re-Selection',
-    prompt: 'Knowing everything you know today, would you choose them if you met for the first time right now?',
+    category: 'Objective Choice',
+    prompt: 'If you met this person today for the first time, would you choose them again?',
     guidanceTip:
-      'Strip away the sunk cost fallacy, shared history, and habit. Answer with a simple Yes or No, followed by a one-sentence reason.',
-    placeholder: 'Yes / No — because...',
+      'Knowing everything you know now—their conflict patterns, how they treat you on bad days, and whether they keep promises—would you actively pursue them today?',
+    placeholder:
+      'e.g., Seeing how they dismiss my feelings during arguments and avoid accountability, I would not choose to get involved today...',
   },
   {
     id: 'q3',
     stepNumber: 3,
-    category: 'Sacrifice Balance',
-    prompt: 'What boundaries have you compromised for them versus what they have sacrificed for you?',
+    category: 'Reciprocity Audit',
+    prompt: 'How many times have you compromised your boundaries for them vs. them for you?',
     guidanceTip:
-      'Be ruthlessly honest about the asymmetry. If your side is filled with unreciprocated compromises, confront that reality directly.',
-    placeholder: 'Your compromises vs. their tangible sacrifices...',
+      'Compare what you consistently sacrifice against what they reciprocate. If your list is vastly longer, you do not love the person; you are addicted to sacrificing.',
+    placeholder:
+      'e.g., My compromises: Cancelled personal routines, tolerated silence, changed boundaries. Their compromises: Minimal to none...',
   },
   {
     id: 'q4',
     stepNumber: 4,
-    category: 'Uniqueness Test',
-    prompt: 'What did you receive from this relationship that you cannot get from friends, family, or your own self-worth?',
+    category: 'Sovereignty & Need',
+    prompt: 'What do you get from this dynamic that you cannot get from others or yourself?',
     guidanceTip:
-      'Relieving loneliness or boredom is not a unique quality. Determine if there was genuine, irreplaceable value.',
-    placeholder: 'Define what was truly unique (if anything)...',
+      'Isolate genuine, irreplaceable connection from simple fear of loneliness. Most emotional needs can be fulfilled through close friendships, community, and personal growth.',
+    placeholder:
+      'e.g., I realized the validation and comfort I seek can be fulfilled by my friends, personal goals, and building my own routine...',
   },
   {
     id: 'q5',
     stepNumber: 5,
-    category: 'Character Evolution',
-    prompt: 'Who did you become when you were around them?',
+    category: 'Identity Shift',
+    prompt: 'Who have you become next to this person—calmer and stronger, or anxious and diminished?',
     guidanceTip:
-      'Did you grow more grounded, productive, and self-assured; or did you become anxious, walking on eggshells, and seeking constant validation?',
-    placeholder: 'Describe your psychological state and personality shift...',
+      'Compare your mental state before this dynamic to today. Have you grown more grounded, or have you become hypervigilant, insecure, and less alive?',
+    placeholder:
+      'e.g., I have become constantly on edge, overanalyzing every response, doubting my worth, and neglecting my personal ambitions...',
   },
   {
     id: 'q6',
     stepNumber: 6,
-    category: 'Third-Person Perspective',
-    prompt: 'If your closest friend were in this exact situation, what clear advice would you give them?',
+    category: 'External Perspective',
+    prompt: 'If your best friend were in this exact situation, what advice would you give them?',
     guidanceTip:
-      'Remove your ego and fear from the equation. Treat yourself with the same honest protection you would offer a loved one.',
-    placeholder: 'Write the objective counsel you would give your best friend...',
+      'Detach emotionally and view the dynamic as an outside observer. Looking from the outside activates cold logic rather than attachment chemistry.',
+    placeholder:
+      'e.g., I would tell them to walk away immediately, recognize that their energy is being drained, and stop waiting for potential...',
   },
 ];

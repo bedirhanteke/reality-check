@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/colors';
 import { Button } from '../components/common/Button';
-import { Card } from '../components/common/Card';
 
 export interface OnboardingScreenProps {
   onStartProtocol: () => void;
@@ -22,14 +21,28 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onStartProto
           <Text style={styles.subheadline}>Emotional clarity through cold logic</Text>
         </View>
 
-        {/* Manifesto Card */}
-        <Card style={styles.manifestoCard}>
-          <Text style={styles.manifestoQuote}>
-            &ldquo;Love is frequently an attachment to a mental construct rather than the person
-            standing in front of you. This 6-step protocol dismantles emotional fog using grounded
-            self-honesty.&rdquo;
+        {/* The Origin & Rationale Card */}
+        <View style={styles.manifestoCard}>
+          <Text style={styles.manifestoTitle}>THE ORIGIN & RATIONALE</Text>
+
+          <Text style={styles.manifestoText}>
+            Love is a neurochemical reaction sustained by idealization rather than reality. We
+            rarely love who someone actually is; we love the mental construct we created.
           </Text>
-        </Card>
+
+          <Text style={styles.manifestoText}>
+            Inspired by reversing Dr. Arthur Aron&apos;s pioneering psychological studies on intimacy
+            and bonding, the{' '}
+            <Text style={styles.boldText}>De-Romanticization Protocol</Text> applies 6 targeted
+            diagnostic questions to dismantle attachment.
+          </Text>
+
+          <Text style={styles.manifestoHighlight}>
+            When the brain is forced to confront observable facts instead of nostalgia and
+            unreciprocated sacrifice, the romantic fog collapses and clarity takes over within
+            minutes.
+          </Text>
+        </View>
 
         {/* Protocol Principles */}
         <View style={styles.principlesSection}>
@@ -78,7 +91,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 24,
     paddingBottom: 36,
-    gap: 28,
+    gap: 24,
     justifyContent: 'space-between',
     minHeight: '100%',
   },
@@ -102,13 +115,32 @@ const styles = StyleSheet.create({
   manifestoCard: {
     padding: 20,
     backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    borderWidth: 1,
     borderColor: COLORS.surfaceBorder,
+    gap: 12,
   },
-  manifestoQuote: {
-    fontSize: 15,
-    lineHeight: 24,
+  manifestoTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.accent,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  manifestoText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: COLORS.textSecondary,
+  },
+  boldText: {
     color: COLORS.textPrimary,
-    fontStyle: 'italic',
+    fontWeight: '700',
+  },
+  manifestoHighlight: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
   },
   principlesSection: {
     gap: 18,

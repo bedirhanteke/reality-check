@@ -1,14 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/colors';
-import { TimerDisplay } from '../components/locked/TimerDisplay';
-import { Button } from '../components/common/Button';
 import { useCountdown } from '../hooks/useCountdown';
 
 export interface LockedScreenProps {
   unlockTimestamp: number | null;
-  notificationPermissionGranted: boolean;
+  notificationPermissionGranted?: boolean;
   onUnlock: () => void;
   onEnterEditMode: () => void;
 }
@@ -18,31 +16,38 @@ export const LockedScreen: React.FC<LockedScreenProps> = ({
   onUnlock,
   onEnterEditMode,
 }) => {
-  // Live countdown ticker
+  // Live countdown ticker in "11h 59m 16s" format
   const { formattedTime } = useCountdown(unlockTimestamp, onUnlock);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.centerContent}>
-          <Text style={styles.title}>Mind in Cool-Down</Text>
-
-          <View style={styles.timerWrapper}>
-            <TimerDisplay formattedTime={formattedTime} />
-          </View>
-
+        {/* 1. Header Section (Fixed at Top) */}
+        <View style={styles.headerSection}>
+          <Text style={styles.title}>The Vault</Text>
           <Text style={styles.subtitle}>
-            Take time away. Your answers will unlock when the timer runs out.
+            Your objective answers are sealed while the timer runs. Take this time to step back and decouple.
           </Text>
         </View>
 
-        <View style={styles.footer}>
-          <Button
-            title="Edit what I wrote"
-            variant="ghost"
+        {/* 2. Timer Section (Exact Vertical & Horizontal Center, Boxless) */}
+        <View style={styles.centerSection}>
+          <Text style={styles.timerDigits}>{formattedTime}</Text>
+        </View>
+
+        {/* 3. Bottom Section: Grounding Text -> Edit Button (Fixed at Bottom) */}
+        <View style={styles.bottomSection}>
+          <Text style={styles.groundingText}>
+            You don't get to read this when you want to. You read it when you're ready to.
+          </Text>
+
+          <TouchableOpacity
+            activeOpacity={0.6}
             onPress={onEnterEditMode}
-            textStyle={styles.editButtonText}
-          />
+            style={styles.editButton}
+          >
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -57,39 +62,64 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingTop: 16,
+    paddingBottom: 24,
     justifyContent: 'space-between',
   },
-  centerContent: {
+  headerSection: {
+    gap: 8,
+    marginTop: 8,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    letterSpacing: -0.5,
+    lineHeight: 36,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    lineHeight: 22,
+    letterSpacing: 0.1,
+  },
+  centerSection: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
+  timerDigits: {
+    fontSize: 36,
+    fontWeight: '800',
     color: COLORS.textPrimary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: -0.5,
     textAlign: 'center',
-    letterSpacing: -0.3,
   },
-  timerWrapper: {
-    width: '100%',
-    maxWidth: 320,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 280,
-  },
-  footer: {
+  bottomSection: {
     alignItems: 'center',
+    gap: 16,
+    paddingBottom: 12,
+  },
+  groundingText: {
+    fontSize: 13,
+    color: COLORS.textTertiary,
+    textAlign: 'center',
+    lineHeight: 19,
+    maxWidth: 290,
+  },
+  editButton: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 24,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceBorder,
   },
   editButtonText: {
-    fontSize: 14,
-    color: COLORS.textTertiary,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    letterSpacing: 0.2,
   },
 });

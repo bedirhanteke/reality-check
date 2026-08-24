@@ -12,21 +12,24 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/colors';
 import { PROTOCOL_QUESTIONS } from '../constants/questions';
-import { ProtocolAnswers } from '../types/protocol';
+import { ProtocolAnswers, NotificationScheduleConfig } from '../types/protocol';
 import { StepProgress } from '../components/common/StepProgress';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
-import { LockSetupModal, LockConfirmationPayload } from './LockSetupModal';
+import { LockSetupModal, ScheduleConfirmationPayload } from './LockSetupModal';
 
 export interface EditingScreenProps {
   currentStep: number;
   answers: ProtocolAnswers;
   onUpdateAnswer: (questionId: keyof ProtocolAnswers, text: string) => void;
   onStepChange: (step: number) => void;
-  onInitiateLock: (payload: LockConfirmationPayload) => void;
+  onActivateSchedule: (payload: ScheduleConfirmationPayload) => void;
+  onBackToOnboarding?: () => void;
   isLockedEditMode?: boolean;
-  onSaveLockedChanges?: () => void;
+  onSaveLockedChanges?: (payload: ScheduleConfirmationPayload) => void;
   onCancelLockedEdit?: () => void;
+  currentScheduleConfig?: NotificationScheduleConfig;
+  currentPrivacyMode?: boolean;
 }
 
 export const EditingScreen: React.FC<EditingScreenProps> = ({
@@ -34,12 +37,15 @@ export const EditingScreen: React.FC<EditingScreenProps> = ({
   answers,
   onUpdateAnswer,
   onStepChange,
-  onInitiateLock,
+  onActivateSchedule,
+  onBackToOnboarding,
   isLockedEditMode = false,
   onSaveLockedChanges,
   onCancelLockedEdit,
+  currentScheduleConfig,
+  currentPrivacyMode = false,
 }) => {
-  const [showLockModal, setShowLockModal] = useState<boolean>(false);
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
   const [isFocused, setIsFocused] = useState<boolean>(false);
 
   const question = PROTOCOL_QUESTIONS[currentStep - 1] || PROTOCOL_QUESTIONS[0];
@@ -49,7 +55,11 @@ export const EditingScreen: React.FC<EditingScreenProps> = ({
   const isLastStep = currentStep === PROTOCOL_QUESTIONS.length;
 
   const handlePrevious = () => {
-    if (!isFirstStep) {
+    if (isFirstStep) {
+      if (!isLockedEditMode && onBackToOnboarding) {
+        onBackToOnboarding();
+      }
+    } else {
       onStepChange(currentStep - 1);
     }
   };
@@ -58,18 +68,22 @@ export const EditingScreen: React.FC<EditingScreenProps> = ({
     if (!isLastStep) {
       onStepChange(currentStep + 1);
     } else {
-      if (isLockedEditMode) {
-        onSaveLockedChanges?.();
-      } else {
-        setShowLockModal(true);
-      }
+      // On step 6 (both normal mode and locked edit mode), open Reality Check Schedule modal
+      setShowScheduleModal(true);
     }
   };
 
-  const handleConfirmLock = (payload: LockConfirmationPayload) => {
-    setShowLockModal(false);
-    onInitiateLock(payload);
+  const handleConfirmSchedule = (payload: ScheduleConfirmationPayload) => {
+    setShowScheduleModal(false);
+    if (isLockedEditMode && onSaveLockedChanges) {
+      onSaveLockedChanges(payload);
+    } else {
+      onActivateSchedule(payload);
+    }
   };
+
+  const previousButtonTitle = isFirstStep && !isLockedEditMode ? '← Intro' : 'Previous';
+  const isPreviousDisabled = isFirstStep && isLockedEditMode;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -78,7 +92,7 @@ export const EditingScreen: React.FC<EditingScreenProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.container}>
-          {/* Top Bar for Locked Edit Mode */}
+          {/* Top Bar for Locked Edit Mode: Pure Cancel Button Only */}
           {isLockedEditMode && (
             <View style={styles.topEditBar}>
               <TouchableOpacity
@@ -86,14 +100,7 @@ export const EditingScreen: React.FC<EditingScreenProps> = ({
                 activeOpacity={0.7}
                 style={styles.cancelEditBtn}
               >
-                <Text style={styles.cancelEditText}>← Back to Timer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onSaveLockedChanges}
-                activeOpacity={0.7}
-                style={styles.saveHeaderBtn}
-              >
-                <Text style={styles.saveHeaderText}>Done</Text>
+                <Text style={styles.cancelEditText}>← Back to Vault</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -141,16 +148,16 @@ export const EditingScreen: React.FC<EditingScreenProps> = ({
           {/* Footer Controls */}
           <View style={styles.footer}>
             <Button
-              title="Previous"
+              title={previousButtonTitle}
               variant="outline"
-              disabled={isFirstStep}
+              disabled={isPreviousDisabled}
               onPress={handlePrevious}
               style={styles.navButton}
             />
 
             {isLastStep ? (
               <Button
-                title={isLockedEditMode ? 'Save & Return' : 'Proceed to Cool-Down'}
+                title={isLockedEditMode ? 'Save Changes' : 'Activate Reminders'}
                 variant="primary"
                 onPress={handleNext}
                 style={styles.primaryActionButton}
@@ -166,14 +173,14 @@ export const EditingScreen: React.FC<EditingScreenProps> = ({
           </View>
         </View>
 
-        {/* Lock Modal */}
-        {!isLockedEditMode && (
-          <LockSetupModal
-            visible={showLockModal}
-            onClose={() => setShowLockModal(false)}
-            onConfirmLock={handleConfirmLock}
-          />
-        )}
+        {/* Schedule Modal (Triggered on Step 6 in both modes) */}
+        <LockSetupModal
+          visible={showScheduleModal}
+          initialConfig={currentScheduleConfig}
+          initialPrivacyMode={currentPrivacyMode}
+          onClose={() => setShowScheduleModal(false)}
+          onConfirmSchedule={handleConfirmSchedule}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -196,7 +203,7 @@ const styles = StyleSheet.create({
   topEditBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.surfaceBorder,
@@ -210,17 +217,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 14,
     fontWeight: '500',
-  },
-  saveHeaderBtn: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  saveHeaderText: {
-    color: COLORS.background,
-    fontSize: 13,
-    fontWeight: '700',
   },
   scrollContent: {
     paddingTop: 8,

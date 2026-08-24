@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
 import { COLORS } from './src/constants/colors';
-import { ProtocolAnswers } from './src/types/protocol';
+import { ProtocolAnswers, NotificationScheduleConfig } from './src/types/protocol';
 import { useProtocolState } from './src/hooks/useProtocolState';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { EditingScreen } from './src/screens/EditingScreen';
 import { LockedScreen } from './src/screens/LockedScreen';
 import { UnveilScreen } from './src/screens/UnveilScreen';
-import { LockConfirmationPayload } from './src/screens/LockSetupModal';
+import { ScheduleConfirmationPayload } from './src/screens/LockSetupModal';
+import { setupNotificationChannel } from './src/utils/notificationHelper';
 
 export default function App() {
   const {
@@ -18,17 +20,44 @@ export default function App() {
     setPhase,
     setCurrentStep,
     updateAnswer,
-    initiateLock,
+    activateSchedule,
     saveLockedAnswers,
     unlockProtocol,
     burnProtocol,
     archiveProtocol,
   } = useProtocolState();
 
-  // Local state for locked-vault editing mode
+  // Local state for locked vault edit mode
   const [isEditingInVault, setIsEditingInVault] = useState<boolean>(false);
   const [vaultEditStep, setVaultEditStep] = useState<number>(1);
   const [pendingVaultAnswers, setPendingVaultAnswers] = useState<ProtocolAnswers | null>(null);
+
+  const currentScheduleConfig: NotificationScheduleConfig = {
+    scheduleType: state.scheduleType,
+    intervalHours: state.notificationIntervalHours,
+    customTime: state.customTime,
+  };
+
+  // Setup notification channel and deep linking on mount
+  useEffect(() => {
+    setupNotificationChannel();
+
+    // 1. Check cold-start notification click (when app was killed)
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response?.notification?.request?.content?.data?.targetScreen === 'vault') {
+        setPhase('UNLOCKED');
+      }
+    });
+
+    // 2. Listener for notification click while app is in background/foreground
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response?.notification?.request?.content?.data?.targetScreen === 'vault') {
+        setPhase('UNLOCKED');
+      }
+    });
+
+    return () => subscription.remove();
+  }, [setPhase]);
 
   if (isLoading) {
     return (
@@ -41,17 +70,26 @@ export default function App() {
     );
   }
 
-  // --- Handlers for Transitions ---
+  // --- Handlers for Initial Entry Flow ---
   const handleStartProtocol = () => {
     setCurrentStep(1);
     setPhase('EDITING');
   };
 
-  const handleInitiateLock = (payload: LockConfirmationPayload) => {
-    initiateLock(payload.durationMs, payload.notificationSettings);
+  const handleBackToOnboarding = () => {
+    setPhase('ONBOARDING');
   };
 
-  // --- Handlers for Editing Answers in Vault ---
+  const handleActivateSchedule = (payload: ScheduleConfirmationPayload) => {
+    activateSchedule(
+      payload.scheduleConfig,
+      payload.privacyMode,
+      payload.permissionGranted,
+      state.answers
+    );
+  };
+
+  // --- Handlers for Editing Answers in Vault (LockedScreen Edit Mode) ---
   const handleEnterVaultEdit = () => {
     setPendingVaultAnswers({ ...state.answers });
     setVaultEditStep(1);
@@ -65,10 +103,14 @@ export default function App() {
     }));
   };
 
-  const handleSaveVaultEdits = () => {
-    if (pendingVaultAnswers) {
-      saveLockedAnswers(pendingVaultAnswers);
-    }
+  const handleSaveVaultEdits = (payload: ScheduleConfirmationPayload) => {
+    const finalAnswers = pendingVaultAnswers || state.answers;
+    saveLockedAnswers(
+      finalAnswers,
+      payload.scheduleConfig,
+      payload.privacyMode,
+      payload.permissionGranted
+    );
     setIsEditingInVault(false);
     setPendingVaultAnswers(null);
   };
@@ -91,7 +133,10 @@ export default function App() {
             answers={state.answers}
             onUpdateAnswer={updateAnswer}
             onStepChange={setCurrentStep}
-            onInitiateLock={handleInitiateLock}
+            onActivateSchedule={handleActivateSchedule}
+            onBackToOnboarding={handleBackToOnboarding}
+            currentScheduleConfig={currentScheduleConfig}
+            currentPrivacyMode={state.privacyMode}
           />
         );
 
@@ -103,10 +148,12 @@ export default function App() {
               answers={pendingVaultAnswers || state.answers}
               onUpdateAnswer={handleVaultAnswerChange}
               onStepChange={setVaultEditStep}
-              onInitiateLock={() => {}}
+              onActivateSchedule={() => {}}
               isLockedEditMode
               onSaveLockedChanges={handleSaveVaultEdits}
               onCancelLockedEdit={handleCancelVaultEdits}
+              currentScheduleConfig={currentScheduleConfig}
+              currentPrivacyMode={state.privacyMode}
             />
           );
         }
@@ -123,6 +170,7 @@ export default function App() {
         return (
           <UnveilScreen
             answers={state.answers}
+            onViewIntro={() => setPhase('ONBOARDING')}
             onBurnData={burnProtocol}
             onArchiveSession={archiveProtocol}
           />

@@ -1,5 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/colors';
 import { PROTOCOL_QUESTIONS } from '../constants/questions';
@@ -9,12 +16,14 @@ import { Button } from '../components/common/Button';
 
 export interface UnveilScreenProps {
   answers: ProtocolAnswers;
+  onViewIntro?: () => void;
   onBurnData: () => void;
   onArchiveSession: () => void;
 }
 
 export const UnveilScreen: React.FC<UnveilScreenProps> = ({
   answers,
+  onViewIntro,
   onBurnData,
   onArchiveSession,
 }) => {
@@ -36,7 +45,7 @@ export const UnveilScreen: React.FC<UnveilScreenProps> = ({
   const handleArchivePress = () => {
     Alert.alert(
       'Saved to Archive',
-      'Your session will remain accessible here whenever you need a reality check.',
+      'Your session remains safely stored on this device for ongoing grounding.',
       [
         {
           text: 'OK',
@@ -51,24 +60,36 @@ export const UnveilScreen: React.FC<UnveilScreenProps> = ({
       <View style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
+          {/* Header Section */}
           <View style={styles.headerSection}>
-            <Text style={styles.headline}>Objective Review</Text>
+            <View style={styles.topNavRow}>
+              <Text style={styles.headline}>The Vault</Text>
+              {onViewIntro && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={onViewIntro}
+                  style={styles.introLinkButton}
+                >
+                  <Text style={styles.introLinkText}>Overview / Context</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <Text style={styles.subheadline}>
-              Read your own words as an external observer. Evaluate what you documented with clarity.
+              Read your recorded answers as an external observer. Evaluate what you documented with cold clarity.
             </Text>
           </View>
 
-          {/* Question & Answer Cards */}
-          <View style={styles.cardsList}>
+          {/* Protocol Answers List */}
+          <View style={styles.protocolList}>
             {PROTOCOL_QUESTIONS.map((q) => {
               const answerText = answers[q.id]?.trim();
               const hasAnswer = Boolean(answerText && answerText.length > 0);
 
               return (
-                <Card key={q.id} style={styles.answerCard}>
+                <Card key={q.id} style={styles.protocolCard}>
                   <View style={styles.cardHeader}>
                     <Text style={styles.stepNum}>0{q.stepNumber}</Text>
                     <View style={styles.categoryBadge}>
@@ -93,19 +114,19 @@ export const UnveilScreen: React.FC<UnveilScreenProps> = ({
           </View>
         </ScrollView>
 
-        {/* Bottom Action Bar */}
+        {/* Action Bar */}
         <View style={styles.actionBar}>
           <Button
             title="Archive Session"
             variant="secondary"
             onPress={handleArchivePress}
-            style={styles.archiveButton}
+            style={styles.halfActionBtn}
           />
           <Button
-            title="Clear Mind (Delete Data)"
+            title="Clear Mind"
             variant="danger"
             onPress={handleBurnPress}
-            style={styles.burnButton}
+            style={styles.halfActionBtn}
           />
         </View>
       </View>
@@ -125,11 +146,29 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 24,
-    gap: 20,
+    gap: 18,
   },
   headerSection: {
     gap: 6,
     marginTop: 4,
+  },
+  topNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  introLinkButton: {
+    backgroundColor: COLORS.surfaceHover,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceBorder,
+  },
+  introLinkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.accent,
   },
   headline: {
     fontSize: 28,
@@ -142,11 +181,10 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 20,
   },
-  cardsList: {
-    gap: 16,
-    marginTop: 4,
+  protocolList: {
+    gap: 14,
   },
-  answerCard: {
+  protocolCard: {
     padding: 16,
     gap: 12,
     backgroundColor: COLORS.surface,
@@ -199,6 +237,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   actionBar: {
+    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 16,
@@ -207,10 +246,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     gap: 10,
   },
-  archiveButton: {
-    width: '100%',
-  },
-  burnButton: {
-    width: '100%',
+  halfActionBtn: {
+    flex: 1,
   },
 });

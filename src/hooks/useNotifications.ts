@@ -1,114 +1,55 @@
 import { useCallback, useEffect } from 'react';
-import { Platform, Linking } from 'react-native';
+import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
-
-// Configure foreground notification presentation options
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-const ANDROID_CHANNEL_ID = 'reality-check-alerts';
+import { VaultNote, NotificationScheduleConfig } from '../types/protocol';
+import {
+  setupNotificationChannel,
+  requestNotificationPermission,
+  scheduleRotatingRealityChecks,
+  cancelRotatingQueue,
+  checkAndRefillQueue,
+  ANDROID_NOTIFICATION_CHANNEL_ID,
+} from '../utils/notificationHelper';
 
 export function useNotifications() {
-  // Ensure Android notification channel is configured
+  // Ensure Android notification channel is configured on hook mount
   useEffect(() => {
-    async function configureAndroidChannel() {
-      if (Platform.OS === 'android') {
-        try {
-          await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-            name: 'Reality Check Notifications',
-            importance: Notifications.AndroidImportance.HIGH,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#E0E1EC',
-            enableVibrate: true,
-            showBadge: false,
-          });
-        } catch (error) {
-          console.warn('Failed to configure Android notification channel:', error);
-        }
-      }
-    }
-    configureAndroidChannel();
+    setupNotificationChannel();
   }, []);
 
   /**
-   * Request notification permissions from the OS.
-   * Returns true if granted, false otherwise.
+   * Request notification permission from the OS.
    */
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      const existingStatus = await Notifications.getPermissionsAsync();
-      if (existingStatus.granted || existingStatus.status === 'granted') {
-        return true;
-      }
-
-      const requestResult = await Notifications.requestPermissionsAsync({
-        ios: {
-          allowAlert: true,
-          allowBadge: false,
-          allowSound: true,
-        },
-      });
-
-      return requestResult.granted || requestResult.status === 'granted';
-    } catch (error) {
-      console.warn('Failed to request notification permission:', error);
-      return false;
-    }
+    return requestNotificationPermission();
   }, []);
 
   /**
-   * Schedule lock notifications:
-   * 1. Repeating daily reminder at user-selected hour & minute.
-   * 2. One-time notification at unlockTimestamp.
-   *
-   * Returns an array of scheduled notification identifiers.
+   * Schedule lock notifications (one-time unlock notification at unlockTimestamp).
    */
   const scheduleLockNotifications = useCallback(
     async (
       unlockTimestamp: number,
-      dailyHour: number,
-      dailyMinute: number
+      _dailyHour?: number,
+      _dailyMinute?: number
     ): Promise<string[]> => {
       const scheduledIds: string[] = [];
 
       try {
-        // 1. Schedule repeating daily reminder mid-protocol
-        const dailyNotificationId = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Reality Check — Protocol Active',
-            body: 'You are currently mid-protocol. Remember to evaluate your reality with objective clarity.',
-            sound: true,
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DAILY,
-            hour: dailyHour,
-            minute: dailyMinute,
-            channelId: Platform.OS === 'android' ? ANDROID_CHANNEL_ID : undefined,
-          },
-        });
-        if (dailyNotificationId) {
-          scheduledIds.push(dailyNotificationId);
-        }
-
-        // 2. Schedule one-time unlock alert at target timestamp
         if (unlockTimestamp > Date.now()) {
           const unlockNotificationId = await Notifications.scheduleNotificationAsync({
             content: {
-              title: 'Reality Check',
-              body: 'Your De-Romanticization review is ready. Open with an objective mind.',
+              title: 'Spellbreak',
+              body: 'Your objective review is ready. Open with clarity.',
               sound: true,
+              data: {
+                targetScreen: 'vault',
+              },
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.DATE,
               date: new Date(unlockTimestamp),
-              channelId: Platform.OS === 'android' ? ANDROID_CHANNEL_ID : undefined,
+              channelId: ANDROID_NOTIFICATION_CHANNEL_ID,
             },
           });
           if (unlockNotificationId) {
@@ -116,7 +57,7 @@ export function useNotifications() {
           }
         }
       } catch (error) {
-        console.warn('Failed to schedule lock notifications:', error);
+        console.warn('Failed to schedule lock notification:', error);
       }
 
       return scheduledIds;
@@ -125,7 +66,21 @@ export function useNotifications() {
   );
 
   /**
-   * Cancel all pending scheduled notifications (or specific ids if provided).
+   * Schedule rotating circular queue for vault notes.
+   */
+  const scheduleNotesQueue = useCallback(
+    async (
+      notes?: VaultNote[],
+      scheduleConfig?: NotificationScheduleConfig,
+      privacyMode?: boolean
+    ): Promise<string[]> => {
+      return scheduleRotatingRealityChecks(notes, scheduleConfig, privacyMode);
+    },
+    []
+  );
+
+  /**
+   * Cancel all notifications (both lock and rotating queue).
    */
   const cancelAllNotifications = useCallback(async (ids?: string[]): Promise<void> => {
     try {
@@ -134,11 +89,17 @@ export function useNotifications() {
           ids.map((id) => Notifications.cancelScheduledNotificationAsync(id))
         );
       }
-      // Also cancel all to avoid any orphaned repeating daily reminders
-      await Notifications.cancelAllScheduledNotificationsAsync();
+      await cancelRotatingQueue();
     } catch (error) {
-      console.warn('Failed to cancel scheduled notifications:', error);
+      console.warn('Failed to cancel notifications:', error);
     }
+  }, []);
+
+  /**
+   * Refill rotating queue if pending count < 5.
+   */
+  const refillQueueIfLow = useCallback(async (): Promise<void> => {
+    await checkAndRefillQueue();
   }, []);
 
   /**
@@ -155,7 +116,9 @@ export function useNotifications() {
   return {
     requestPermission,
     scheduleLockNotifications,
+    scheduleNotesQueue,
     cancelAllNotifications,
+    refillQueueIfLow,
     openAppSettings,
   };
 }

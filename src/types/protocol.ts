@@ -11,30 +11,46 @@ export interface QuestionItem {
 
 export interface ProtocolAnswers {
   q1: string; // Concrete Reality
-  q2: string; // Re-Selection
-  q3: string; // Sacrifice Balance
-  q4: string; // Uniqueness Test
-  q5: string; // Character Evolution
-  q6: string; // Third-Person Perspective
+  q2: string; // Objective Choice
+  q3: string; // Reciprocity Audit
+  q4: string; // Sovereignty & Need
+  q5: string; // Identity Shift
+  q6: string; // External Perspective
+}
+
+export interface VaultNote {
+  id: string;        // unique id
+  text: string;
+  createdAt: number; // epoch ms
+}
+
+export type ScheduleType = 'interval' | 'specific_time';
+export type NotificationIntervalHours = 6 | 12 | 24;
+
+export interface NotificationScheduleConfig {
+  scheduleType: ScheduleType;
+  intervalHours: NotificationIntervalHours;
+  customTime: string; // 'HH:mm', e.g. '21:00'
+}
+
+export interface NotificationPayloadData {
+  targetScreen: 'vault';
+  noteId?: string;
 }
 
 export interface ProtocolStateData {
   phase: ProtocolPhase;
   currentStep: number;
   answers: ProtocolAnswers;
-  /**
-   * Application-level lock timestamp (milliseconds since epoch).
-   * Note: The vault uses a state/UI access gate rather than cryptographic encryption.
-   */
   lockTimestamp: number | null;
-  /**
-   * Target timestamp when UI gate opens to allow objective review.
-   */
   unlockTimestamp: number | null;
+  lastScheduledTimestamp: number | null;
 
   // Notification-related state
   notificationPermissionGranted: boolean;
-  dailyReminderHour: number | null;   // 0-23, user-selected hour for daily reminder
-  dailyReminderMinute: number | null; // 0-59
-  scheduledNotificationIds: string[]; // all pending notification IDs (daily reminders + final unlock alert)
+  scheduleType: ScheduleType;
+  notificationIntervalHours: NotificationIntervalHours;
+  customTime: string; // e.g. '21:00'
+  privacyMode: boolean;
+  scheduledNotificationIds: string[];
 }

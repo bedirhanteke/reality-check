@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 
 export interface CountdownResult {
-  formattedTime: string; // HH:MM:SS (e.g. "48:00:00" or "00:00:00")
+  formattedTime: string; // e.g. "11h 59m 16s"
+  colonFormattedTime: string; // e.g. "11:59:16"
   isExpired: boolean;
   totalSecondsRemaining: number;
   days: number;
@@ -17,10 +18,11 @@ export function useCountdown(
   const onExpireRef = useRef(onExpire);
   onExpireRef.current = onExpire;
 
-  const calculateRemaining = () => {
+  const calculateRemaining = (): CountdownResult => {
     if (!targetTimestamp) {
       return {
-        formattedTime: '00:00:00',
+        formattedTime: '00h 00m 00s',
+        colonFormattedTime: '00:00:00',
         isExpired: true,
         totalSecondsRemaining: 0,
         days: 0,
@@ -35,7 +37,8 @@ export function useCountdown(
 
     if (diffMs <= 0) {
       return {
-        formattedTime: '00:00:00',
+        formattedTime: '00h 00m 00s',
+        colonFormattedTime: '00:00:00',
         isExpired: true,
         totalSecondsRemaining: 0,
         days: 0,
@@ -57,7 +60,8 @@ export function useCountdown(
     const formattedSecs = String(seconds).padStart(2, '0');
 
     return {
-      formattedTime: `${formattedHours}:${formattedMinutes}:${formattedSecs}`,
+      formattedTime: `${formattedHours}h ${formattedMinutes}m ${formattedSecs}s`,
+      colonFormattedTime: `${formattedHours}:${formattedMinutes}:${formattedSecs}`,
       isExpired: false,
       totalSecondsRemaining: totalSeconds,
       days,
