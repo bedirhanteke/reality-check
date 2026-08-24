@@ -42,31 +42,6 @@ export async function saveNotes(notes: VaultNote[]): Promise<void> {
 }
 
 /**
- * Add a new note and return the updated notes list.
- */
-export async function addNote(text: string): Promise<{ newNote: VaultNote; notes: VaultNote[] }> {
-  const currentNotes = await getNotes();
-  const newNote: VaultNote = {
-    id: generateUniqueId(),
-    text: text.trim(),
-    createdAt: Date.now(),
-  };
-  const updatedNotes = [newNote, ...currentNotes];
-  await saveNotes(updatedNotes);
-  return { newNote, notes: updatedNotes };
-}
-
-/**
- * Delete a note by id and return the updated notes list.
- */
-export async function deleteNote(id: string): Promise<VaultNote[]> {
-  const currentNotes = await getNotes();
-  const updatedNotes = currentNotes.filter((note) => note.id !== id);
-  await saveNotes(updatedNotes);
-  return updatedNotes;
-}
-
-/**
  * Get schedule type (default: 'interval').
  */
 export async function getScheduleType(): Promise<ScheduleType> {

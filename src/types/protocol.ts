@@ -46,7 +46,7 @@ export interface ProtocolStateData {
   unlockTimestamp: number | null;
   lastScheduledTimestamp: number | null;
 
-  // Notification-related state
+  // Notification & lock duration config (unified single source of truth)
   notificationPermissionGranted: boolean;
   scheduleType: ScheduleType;
   notificationIntervalHours: NotificationIntervalHours;

@@ -6,7 +6,6 @@ import {
   getScheduleConfig,
   getPrivacyMode,
   saveLastScheduledTimestamp,
-  getLastScheduledTimestamp,
 } from './storage';
 
 export const ANDROID_NOTIFICATION_CHANNEL_ID = 'spellbreak-alerts';
@@ -218,9 +217,6 @@ export async function scheduleRotatingRealityChecks(
 
   return scheduledIds;
 }
-
-// Alias for backwards compatibility
-export const scheduleRotatingQueue = scheduleRotatingRealityChecks;
 
 /**
  * Check if the pending scheduled notification queue has dropped below REFILL_THRESHOLD (5),

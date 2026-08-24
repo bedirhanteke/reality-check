@@ -5,17 +5,13 @@ import {
   ProtocolAnswers,
   ProtocolStateData,
   VaultNote,
-  NotificationIntervalHours,
   NotificationScheduleConfig,
 } from '../types/protocol';
 import {
   getNotes,
   saveNotes,
-  addNote,
-  deleteNote,
   getScheduleConfig,
   saveScheduleConfig,
-  saveNotificationIntervalHours,
   getPrivacyMode,
   savePrivacyMode,
   getLastScheduledTimestamp,
@@ -23,7 +19,11 @@ import {
   saveStoredProtocolState,
   clearAllAppData,
 } from '../utils/storage';
-import { scheduleRotatingRealityChecks, checkAndRefillQueue } from '../utils/notificationHelper';
+import {
+  scheduleRotatingRealityChecks,
+  checkAndRefillQueue,
+  getNextReminderTimestamp,
+} from '../utils/notificationHelper';
 import { useNotifications } from './useNotifications';
 
 const INITIAL_ANSWERS: ProtocolAnswers = {
@@ -52,15 +52,11 @@ const INITIAL_STATE: ProtocolStateData = {
 
 export function useProtocolState() {
   const [state, setState] = useState<ProtocolStateData>(INITIAL_STATE);
-  const [notes, setNotes] = useState<VaultNote[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { cancelAllNotifications } = useNotifications();
 
   const stateRef = useRef<ProtocolStateData>(state);
   stateRef.current = state;
-
-  const notesRef = useRef<VaultNote[]>(notes);
-  notesRef.current = notes;
 
   /**
    * Helper to sync protocol answers into VaultNote[] if notes are empty.
@@ -152,7 +148,6 @@ export function useProtocolState() {
         const finalNotes = await syncAnswersToNotesIfEmpty(resolvedState.answers, storedNotes);
 
         setState(resolvedState);
-        setNotes(finalNotes);
 
         if (storedState && resolvedState.phase !== storedState.phase) {
           await saveStoredProtocolState(resolvedState);
@@ -186,9 +181,7 @@ export function useProtocolState() {
           }));
         }
 
-        if (notesRef.current.length > 0) {
-          await checkAndRefillQueue();
-        }
+        await checkAndRefillQueue();
       }
     };
 
@@ -234,6 +227,9 @@ export function useProtocolState() {
 
   /**
    * Activate schedule and transition to The Vault (LOCKED).
+   * Computes unlockTimestamp directly from the chosen Notification Schedule:
+   * - 6h / 12h / 24h: unlockTimestamp = now + (intervalHours * 3600 * 1000)
+   * - Specific Time: unlockTimestamp = next occurrence of chosen time (today or tomorrow)
    */
   const activateSchedule = useCallback(
     async (
@@ -259,18 +255,18 @@ export function useProtocolState() {
           text: text.trim(),
           createdAt: Date.now() - (answerEntries.length - idx) * 1000,
         }));
-      } else {
-        updatedNotes = notesRef.current;
+        await saveNotes(updatedNotes);
       }
 
-      await saveNotes(updatedNotes);
-      setNotes(updatedNotes);
-
       const now = Date.now();
-      const lockDurationMs = 24 * 60 * 60 * 1000; // 24 Hours standard lock
-      const unlockTime = stateRef.current.unlockTimestamp && stateRef.current.unlockTimestamp > now
-        ? stateRef.current.unlockTimestamp
-        : now + lockDurationMs;
+      let unlockTime: number;
+
+      if (scheduleConfig.scheduleType === 'specific_time') {
+        unlockTime = getNextReminderTimestamp(scheduleConfig, now);
+      } else {
+        const intervalMs = (scheduleConfig.intervalHours || 12) * 60 * 60 * 1000;
+        unlockTime = now + intervalMs;
+      }
 
       let scheduledIds: string[] = [];
       if (granted && updatedNotes.length > 0) {
@@ -280,7 +276,7 @@ export function useProtocolState() {
       updateAndPersist((prev) => ({
         ...prev,
         phase: 'LOCKED',
-        lockTimestamp: prev.lockTimestamp || now,
+        lockTimestamp: now,
         unlockTimestamp: unlockTime,
         answers: effectiveAnswers,
         notificationPermissionGranted: granted,
@@ -296,8 +292,9 @@ export function useProtocolState() {
   );
 
   /**
-   * Save edited answers during LOCKED phase without altering countdown timestamps.
-   * Reschedules the rotating reality check queue with fresh answers and chosen settings.
+   * Save edited answers and update schedule during LOCKED phase.
+   * Immediately recalculates unlockTimestamp and reschedules notification queue
+   * based on the newly saved Notification Schedule.
    */
   const saveLockedAnswers = useCallback(
     async (
@@ -329,7 +326,16 @@ export function useProtocolState() {
           createdAt: Date.now() - (answerEntries.length - idx) * 1000,
         }));
         await saveNotes(updatedNotes);
-        setNotes(updatedNotes);
+      }
+
+      const now = Date.now();
+      let unlockTime: number;
+
+      if (config.scheduleType === 'specific_time') {
+        unlockTime = getNextReminderTimestamp(config, now);
+      } else {
+        const intervalMs = (config.intervalHours || 12) * 60 * 60 * 1000;
+        unlockTime = now + intervalMs;
       }
 
       const hasPermission = granted !== undefined ? granted : stateRef.current.notificationPermissionGranted;
@@ -341,155 +347,15 @@ export function useProtocolState() {
       updateAndPersist((prev) => ({
         ...prev,
         answers: newAnswers,
+        lockTimestamp: now,
+        unlockTimestamp: unlockTime,
         scheduleType: config.scheduleType,
         notificationIntervalHours: config.intervalHours,
         customTime: config.customTime,
         privacyMode: privacy,
+        lastScheduledTimestamp: now,
         scheduledNotificationIds: scheduledIds,
-        // lockTimestamp and unlockTimestamp remain strictly untouched!
       }));
-    },
-    [updateAndPersist]
-  );
-
-  /**
-   * Add a new vault note and reschedule rotating queue.
-   */
-  const addVaultNote = useCallback(
-    async (text: string) => {
-      if (!text || text.trim().length === 0) return;
-      const { notes: updatedNotes } = await addNote(text);
-      setNotes(updatedNotes);
-
-      const scheduleConfig: NotificationScheduleConfig = {
-        scheduleType: stateRef.current.scheduleType,
-        intervalHours: stateRef.current.notificationIntervalHours,
-        customTime: stateRef.current.customTime,
-      };
-
-      const scheduledIds = await scheduleRotatingRealityChecks(
-        updatedNotes,
-        scheduleConfig,
-        stateRef.current.privacyMode
-      );
-
-      updateAndPersist((prev) => ({
-        ...prev,
-        scheduledNotificationIds: scheduledIds,
-        lastScheduledTimestamp: Date.now(),
-      }));
-    },
-    [updateAndPersist]
-  );
-
-  /**
-   * Delete a vault note and reschedule rotating queue.
-   */
-  const deleteVaultNote = useCallback(
-    async (id: string) => {
-      const updatedNotes = await deleteNote(id);
-      setNotes(updatedNotes);
-
-      const scheduleConfig: NotificationScheduleConfig = {
-        scheduleType: stateRef.current.scheduleType,
-        intervalHours: stateRef.current.notificationIntervalHours,
-        customTime: stateRef.current.customTime,
-      };
-
-      const scheduledIds = await scheduleRotatingRealityChecks(
-        updatedNotes,
-        scheduleConfig,
-        stateRef.current.privacyMode
-      );
-
-      updateAndPersist((prev) => ({
-        ...prev,
-        scheduledNotificationIds: scheduledIds,
-        lastScheduledTimestamp: Date.now(),
-      }));
-    },
-    [updateAndPersist]
-  );
-
-  /**
-   * Update schedule config and reschedule.
-   */
-  const setScheduleConfigState = useCallback(
-    async (config: NotificationScheduleConfig) => {
-      await saveScheduleConfig(config);
-      updateAndPersist((prev) => ({
-        ...prev,
-        scheduleType: config.scheduleType,
-        notificationIntervalHours: config.intervalHours,
-        customTime: config.customTime,
-        lastScheduledTimestamp: Date.now(),
-      }));
-
-      if (notesRef.current.length > 0) {
-        await scheduleRotatingRealityChecks(
-          notesRef.current,
-          config,
-          stateRef.current.privacyMode
-        );
-      }
-    },
-    [updateAndPersist]
-  );
-
-  /**
-   * Set notification interval (6h / 12h / 24h) and reschedule rotating queue.
-   */
-  const setNotificationInterval = useCallback(
-    async (hours: NotificationIntervalHours) => {
-      await saveNotificationIntervalHours(hours);
-      updateAndPersist((prev) => ({
-        ...prev,
-        scheduleType: 'interval',
-        notificationIntervalHours: hours,
-        lastScheduledTimestamp: Date.now(),
-      }));
-
-      const scheduleConfig: NotificationScheduleConfig = {
-        scheduleType: 'interval',
-        intervalHours: hours,
-        customTime: stateRef.current.customTime,
-      };
-
-      if (notesRef.current.length > 0) {
-        await scheduleRotatingRealityChecks(
-          notesRef.current,
-          scheduleConfig,
-          stateRef.current.privacyMode
-        );
-      }
-    },
-    [updateAndPersist]
-  );
-
-  /**
-   * Set privacy mode and reschedule rotating queue with masked copy.
-   */
-  const setPrivacyModeState = useCallback(
-    async (enabled: boolean) => {
-      await savePrivacyMode(enabled);
-      updateAndPersist((prev) => ({
-        ...prev,
-        privacyMode: enabled,
-      }));
-
-      const scheduleConfig: NotificationScheduleConfig = {
-        scheduleType: stateRef.current.scheduleType,
-        intervalHours: stateRef.current.notificationIntervalHours,
-        customTime: stateRef.current.customTime,
-      };
-
-      if (notesRef.current.length > 0) {
-        await scheduleRotatingRealityChecks(
-          notesRef.current,
-          scheduleConfig,
-          enabled
-        );
-      }
     },
     [updateAndPersist]
   );
@@ -501,11 +367,10 @@ export function useProtocolState() {
     await cancelAllNotifications();
     await clearAllAppData();
     setState(INITIAL_STATE);
-    setNotes([]);
   }, [cancelAllNotifications]);
 
   /**
-   * Archive session.
+   * Archive session: retains data as locked/unlocked review.
    */
   const archiveProtocol = useCallback(async () => {
     updateAndPersist((prev) => ({
@@ -528,7 +393,6 @@ export function useProtocolState() {
 
   return {
     state,
-    notes,
     isLoading,
     setPhase,
     setCurrentStep,
@@ -536,11 +400,6 @@ export function useProtocolState() {
     activateSchedule,
     saveLockedAnswers,
     unlockProtocol,
-    addVaultNote,
-    deleteVaultNote,
-    setScheduleConfigState,
-    setNotificationInterval,
-    setPrivacyModeState,
     burnProtocol,
     archiveProtocol,
   };

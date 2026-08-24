@@ -13,7 +13,6 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { COLORS } from '../constants/colors';
 import { Button } from '../components/common/Button';
 import {
-  ScheduleType,
   NotificationIntervalHours,
   NotificationScheduleConfig,
 } from '../types/protocol';
@@ -42,7 +41,7 @@ export const LockSetupModal: React.FC<LockSetupModalProps> = ({
   onClose,
   onConfirmSchedule,
 }) => {
-  // 1. Reminders Schedule (6h | 12h | 24h | Specific Time)
+  // 1. Notification Schedule (6h | 12h | 24h | Specific Time) -> Single source of truth for both reminders and vault unlock
   const [scheduleOption, setScheduleOption] = useState<ScheduleOption>('12h');
 
   // Specific Time State
@@ -61,22 +60,24 @@ export const LockSetupModal: React.FC<LockSetupModalProps> = ({
 
   // Synchronize state when modal opens
   useEffect(() => {
-    if (visible && initialConfig) {
-      if (initialConfig.scheduleType === 'specific_time') {
-        setScheduleOption('specific_time');
-      } else if (initialConfig.intervalHours === 6) {
-        setScheduleOption('6h');
-      } else if (initialConfig.intervalHours === 24) {
-        setScheduleOption('24h');
-      } else {
-        setScheduleOption('12h');
-      }
+    if (visible) {
+      if (initialConfig) {
+        if (initialConfig.scheduleType === 'specific_time') {
+          setScheduleOption('specific_time');
+        } else if (initialConfig.intervalHours === 6) {
+          setScheduleOption('6h');
+        } else if (initialConfig.intervalHours === 24) {
+          setScheduleOption('24h');
+        } else {
+          setScheduleOption('12h');
+        }
 
-      if (initialConfig.customTime) {
-        const [h, m] = initialConfig.customTime.split(':');
-        const d = new Date();
-        d.setHours(parseInt(h, 10) || 21, parseInt(m, 10) || 0, 0, 0);
-        setDailyTimeDate(d);
+        if (initialConfig.customTime) {
+          const [h, m] = initialConfig.customTime.split(':');
+          const d = new Date();
+          d.setHours(parseInt(h, 10) || 21, parseInt(m, 10) || 0, 0, 0);
+          setDailyTimeDate(d);
+        }
       }
 
       setPrivacyMode(initialPrivacyMode);
@@ -165,13 +166,13 @@ export const LockSetupModal: React.FC<LockSetupModalProps> = ({
               <View style={styles.handle} />
               <Text style={styles.title}>Reality Check Schedule</Text>
               <Text style={styles.subtitle}>
-                Choose how often you want to be reminded of these facts.
+                Set how often you want to be reminded — this also determines when the vault unlocks.
               </Text>
             </View>
 
-            {/* FREQUENCY SELECTION */}
+            {/* 1. NOTIFICATION SCHEDULE (6h | 12h | 24h | Specific Time) */}
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>FREQUENCY SELECTION</Text>
+              <Text style={styles.sectionLabel}>NOTIFICATION SCHEDULE</Text>
               <View style={styles.segmentRow}>
                 {(['6h', '12h', '24h', 'specific_time'] as ScheduleOption[]).map((opt) => {
                   const labelMap: Record<ScheduleOption, string> = {
@@ -242,7 +243,7 @@ export const LockSetupModal: React.FC<LockSetupModalProps> = ({
               )}
             </View>
 
-            {/* PRIVACY */}
+            {/* 2. PRIVACY */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>PRIVACY</Text>
               <View style={styles.privacyCard}>
