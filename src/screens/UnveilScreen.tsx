@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,31 +10,40 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/colors';
 import { PROTOCOL_QUESTIONS } from '../constants/questions';
-import { ProtocolAnswers } from '../types/protocol';
+import { ProtocolAnswers, NotificationScheduleConfig } from '../types/protocol';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
+import { LockSetupModal, ScheduleConfirmationPayload } from './LockSetupModal';
 
 export interface UnveilScreenProps {
   answers: ProtocolAnswers;
   onViewIntro?: () => void;
   onBurnData: () => void;
-  onArchiveSession: () => void;
+  onLock: () => void;
+  currentScheduleConfig?: NotificationScheduleConfig;
+  currentPrivacyMode?: boolean;
+  onActivateSchedule?: (payload: ScheduleConfirmationPayload) => void;
 }
 
 export const UnveilScreen: React.FC<UnveilScreenProps> = ({
   answers,
   onViewIntro,
   onBurnData,
-  onArchiveSession,
+  onLock,
+  currentScheduleConfig,
+  currentPrivacyMode = false,
+  onActivateSchedule,
 }) => {
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
+
   const handleBurnPress = () => {
     Alert.alert(
-      'Delete All Records?',
-      'This will permanently remove your recorded answers from this device.',
+      'Burn All Records?',
+      'This action is permanent and clears all local data.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete All',
+          text: 'Burn All',
           style: 'destructive',
           onPress: onBurnData,
         },
@@ -42,17 +51,27 @@ export const UnveilScreen: React.FC<UnveilScreenProps> = ({
     );
   };
 
-  const handleArchivePress = () => {
-    Alert.alert(
-      'Saved to Archive',
-      'Your session remains safely stored on this device for ongoing grounding.',
-      [
-        {
-          text: 'OK',
-          onPress: onArchiveSession,
-        },
-      ]
+  const handleLockPress = () => {
+    const hasValidSchedule = Boolean(
+      currentScheduleConfig &&
+        ((currentScheduleConfig.scheduleType === 'interval' && currentScheduleConfig.intervalHours) ||
+          (currentScheduleConfig.scheduleType === 'specific_time' && currentScheduleConfig.customTime))
     );
+
+    if (!hasValidSchedule) {
+      setShowScheduleModal(true);
+    } else {
+      onLock();
+    }
+  };
+
+  const handleConfirmSchedule = (payload: ScheduleConfirmationPayload) => {
+    setShowScheduleModal(false);
+    if (onActivateSchedule) {
+      onActivateSchedule(payload);
+    } else {
+      onLock();
+    }
   };
 
   return (
@@ -117,18 +136,27 @@ export const UnveilScreen: React.FC<UnveilScreenProps> = ({
         {/* Action Bar */}
         <View style={styles.actionBar}>
           <Button
-            title="Archive Session"
-            variant="secondary"
-            onPress={handleArchivePress}
-            style={styles.halfActionBtn}
-          />
-          <Button
             title="Clear Mind"
             variant="danger"
             onPress={handleBurnPress}
             style={styles.halfActionBtn}
           />
+          <Button
+            title="Lock"
+            variant="secondary"
+            onPress={handleLockPress}
+            style={styles.halfActionBtn}
+          />
         </View>
+
+        {/* Schedule Modal for edge-case configuration */}
+        <LockSetupModal
+          visible={showScheduleModal}
+          initialConfig={currentScheduleConfig}
+          initialPrivacyMode={currentPrivacyMode}
+          onClose={() => setShowScheduleModal(false)}
+          onConfirmSchedule={handleConfirmSchedule}
+        />
       </View>
     </SafeAreaView>
   );

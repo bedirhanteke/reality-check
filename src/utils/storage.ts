@@ -2,8 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StorageKeys } from '../constants/storageKeys';
 import {
   VaultNote,
-  ScheduleType,
-  NotificationIntervalHours,
   NotificationScheduleConfig,
   ProtocolStateData,
 } from '../types/protocol';
@@ -42,154 +40,8 @@ export async function saveNotes(notes: VaultNote[]): Promise<void> {
 }
 
 /**
- * Get schedule type (default: 'interval').
- */
-export async function getScheduleType(): Promise<ScheduleType> {
-  try {
-    const raw = await AsyncStorage.getItem(StorageKeys.SCHEDULE_TYPE);
-    if (raw === 'specific_time' || raw === 'interval') {
-      return raw;
-    }
-    return 'interval';
-  } catch (error) {
-    console.warn('Failed to load schedule type:', error);
-    return 'interval';
-  }
-}
-
-/**
- * Save schedule type.
- */
-export async function saveScheduleType(type: ScheduleType): Promise<void> {
-  try {
-    await AsyncStorage.setItem(StorageKeys.SCHEDULE_TYPE, type);
-  } catch (error) {
-    console.warn('Failed to save schedule type:', error);
-  }
-}
-
-/**
- * Get notification interval in hours (default: 12).
- */
-export async function getNotificationIntervalHours(): Promise<NotificationIntervalHours> {
-  try {
-    const raw = await AsyncStorage.getItem(StorageKeys.NOTIFICATION_INTERVAL_HOURS);
-    if (!raw) return 12;
-    const parsed = parseInt(raw, 10);
-    if (parsed === 6 || parsed === 12 || parsed === 24) {
-      return parsed as NotificationIntervalHours;
-    }
-    return 12;
-  } catch (error) {
-    console.warn('Failed to load notification interval:', error);
-    return 12;
-  }
-}
-
-/**
- * Save notification interval in hours.
- */
-export async function saveNotificationIntervalHours(hours: NotificationIntervalHours): Promise<void> {
-  try {
-    await AsyncStorage.setItem(StorageKeys.NOTIFICATION_INTERVAL_HOURS, hours.toString());
-  } catch (error) {
-    console.warn('Failed to save notification interval:', error);
-  }
-}
-
-/**
- * Get custom daily reminder time (default: '21:00').
- */
-export async function getCustomTime(): Promise<string> {
-  try {
-    const raw = await AsyncStorage.getItem(StorageKeys.CUSTOM_TIME);
-    return raw && raw.length === 5 ? raw : '21:00';
-  } catch (error) {
-    console.warn('Failed to load custom time:', error);
-    return '21:00';
-  }
-}
-
-/**
- * Save custom daily reminder time.
- */
-export async function saveCustomTime(time: string): Promise<void> {
-  try {
-    await AsyncStorage.setItem(StorageKeys.CUSTOM_TIME, time);
-  } catch (error) {
-    console.warn('Failed to save custom time:', error);
-  }
-}
-
-/**
- * Get full schedule config.
- */
-export async function getScheduleConfig(): Promise<NotificationScheduleConfig> {
-  const scheduleType = await getScheduleType();
-  const intervalHours = await getNotificationIntervalHours();
-  const customTime = await getCustomTime();
-  return { scheduleType, intervalHours, customTime };
-}
-
-/**
- * Save full schedule config.
- */
-export async function saveScheduleConfig(config: NotificationScheduleConfig): Promise<void> {
-  await saveScheduleType(config.scheduleType);
-  await saveNotificationIntervalHours(config.intervalHours);
-  await saveCustomTime(config.customTime);
-}
-
-/**
- * Get privacy mode preference (default: false).
- */
-export async function getPrivacyMode(): Promise<boolean> {
-  try {
-    const raw = await AsyncStorage.getItem(StorageKeys.PRIVACY_MODE);
-    return raw === 'true';
-  } catch (error) {
-    console.warn('Failed to load privacy mode:', error);
-    return false;
-  }
-}
-
-/**
- * Save privacy mode preference.
- */
-export async function savePrivacyMode(enabled: boolean): Promise<void> {
-  try {
-    await AsyncStorage.setItem(StorageKeys.PRIVACY_MODE, enabled ? 'true' : 'false');
-  } catch (error) {
-    console.warn('Failed to save privacy mode:', error);
-  }
-}
-
-/**
- * Get timestamp when notifications were last scheduled.
- */
-export async function getLastScheduledTimestamp(): Promise<number | null> {
-  try {
-    const raw = await AsyncStorage.getItem(StorageKeys.LAST_SCHEDULED_TIMESTAMP);
-    return raw ? parseInt(raw, 10) : null;
-  } catch (error) {
-    console.warn('Failed to load last scheduled timestamp:', error);
-    return null;
-  }
-}
-
-/**
- * Save timestamp when notifications were scheduled.
- */
-export async function saveLastScheduledTimestamp(ts: number): Promise<void> {
-  try {
-    await AsyncStorage.setItem(StorageKeys.LAST_SCHEDULED_TIMESTAMP, ts.toString());
-  } catch (error) {
-    console.warn('Failed to save last scheduled timestamp:', error);
-  }
-}
-
-/**
  * Load protocol state data with backward compatibility.
+ * This is the unified single source of truth for the entire protocol.
  */
 export async function getStoredProtocolState(): Promise<ProtocolStateData | null> {
   try {
@@ -205,13 +57,96 @@ export async function getStoredProtocolState(): Promise<ProtocolStateData | null
 }
 
 /**
- * Save protocol state data.
+ * Save protocol state data to storage.
  */
 export async function saveStoredProtocolState(data: ProtocolStateData): Promise<void> {
   try {
     await AsyncStorage.setItem(StorageKeys.PROTOCOL_STATE, JSON.stringify(data));
   } catch (error) {
     console.warn('Failed to save protocol state:', error);
+  }
+}
+
+/**
+ * Get full schedule config derived directly from the unified protocol state.
+ */
+export async function getScheduleConfig(): Promise<NotificationScheduleConfig> {
+  try {
+    const state = await getStoredProtocolState();
+    if (state) {
+      return {
+        scheduleType: state.scheduleType || 'interval',
+        intervalHours: state.notificationIntervalHours || 12,
+        customTime: state.customTime || '21:00',
+      };
+    }
+  } catch (error) {
+    console.warn('Failed to read schedule config from protocol state:', error);
+  }
+
+  return {
+    scheduleType: 'interval',
+    intervalHours: 12,
+    customTime: '21:00',
+  };
+}
+
+/**
+ * Get privacy mode preference derived directly from the unified protocol state.
+ */
+export async function getPrivacyMode(): Promise<boolean> {
+  try {
+    const state = await getStoredProtocolState();
+    return state?.privacyMode ?? false;
+  } catch (error) {
+    console.warn('Failed to read privacy mode from protocol state:', error);
+    return false;
+  }
+}
+
+/**
+ * Get timestamp when notifications were last scheduled from unified protocol state.
+ */
+export async function getLastScheduledTimestamp(): Promise<number | null> {
+  try {
+    const state = await getStoredProtocolState();
+    return state?.lastScheduledTimestamp ?? null;
+  } catch (error) {
+    console.warn('Failed to read last scheduled timestamp:', error);
+    return null;
+  }
+}
+
+/**
+ * Save timestamp when notifications were scheduled into unified protocol state.
+ */
+export async function saveLastScheduledTimestamp(ts: number): Promise<void> {
+  try {
+    const state = await getStoredProtocolState();
+    if (state) {
+      state.lastScheduledTimestamp = ts;
+      await saveStoredProtocolState(state);
+    }
+  } catch (error) {
+    console.warn('Failed to save last scheduled timestamp:', error);
+  }
+}
+
+/**
+ * Clean up legacy/deprecated standalone keys (such as '@spellbreak:notificationIntervalHours')
+ * so that '@spellbreak:protocol_state' remains the clean single source of truth.
+ */
+export async function cleanupLegacyStorageKeys(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([
+      StorageKeys.DEPRECATED_NOTIFICATION_INTERVAL_HOURS,
+      StorageKeys.DEPRECATED_SCHEDULE_TYPE,
+      StorageKeys.DEPRECATED_CUSTOM_TIME,
+      StorageKeys.DEPRECATED_PRIVACY_MODE,
+      StorageKeys.DEPRECATED_LAST_SCHEDULED_TIMESTAMP,
+    ]);
+  } catch (error) {
+    console.warn('Failed to clean up legacy storage keys:', error);
   }
 }
 
@@ -224,11 +159,11 @@ export async function clearAllAppData(): Promise<void> {
       StorageKeys.PROTOCOL_STATE,
       StorageKeys.LEGACY_PROTOCOL_STATE,
       StorageKeys.NOTES,
-      StorageKeys.SCHEDULE_TYPE,
-      StorageKeys.NOTIFICATION_INTERVAL_HOURS,
-      StorageKeys.CUSTOM_TIME,
-      StorageKeys.PRIVACY_MODE,
-      StorageKeys.LAST_SCHEDULED_TIMESTAMP,
+      StorageKeys.DEPRECATED_NOTIFICATION_INTERVAL_HOURS,
+      StorageKeys.DEPRECATED_SCHEDULE_TYPE,
+      StorageKeys.DEPRECATED_CUSTOM_TIME,
+      StorageKeys.DEPRECATED_PRIVACY_MODE,
+      StorageKeys.DEPRECATED_LAST_SCHEDULED_TIMESTAMP,
     ]);
   } catch (error) {
     console.warn('Failed to clear app data from storage:', error);

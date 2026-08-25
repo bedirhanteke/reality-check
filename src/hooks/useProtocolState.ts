@@ -10,14 +10,10 @@ import {
 import {
   getNotes,
   saveNotes,
-  getScheduleConfig,
-  saveScheduleConfig,
-  getPrivacyMode,
-  savePrivacyMode,
-  getLastScheduledTimestamp,
   getStoredProtocolState,
   saveStoredProtocolState,
   clearAllAppData,
+  cleanupLegacyStorageKeys,
 } from '../utils/storage';
 import {
   scheduleRotatingRealityChecks,
@@ -117,29 +113,19 @@ export function useProtocolState() {
   useEffect(() => {
     async function loadStoredState() {
       try {
+        // Clean up legacy standalone keys (e.g. @spellbreak:notificationIntervalHours)
+        await cleanupLegacyStorageKeys();
+
         const storedState = await getStoredProtocolState();
         const storedNotes = await getNotes();
-        const storedConfig = await getScheduleConfig();
-        const storedPrivacy = await getPrivacyMode();
-        const storedLastScheduled = await getLastScheduledTimestamp();
 
         let resolvedState: ProtocolStateData = storedState
           ? {
               ...INITIAL_STATE,
               ...storedState,
-              scheduleType: storedConfig.scheduleType,
-              notificationIntervalHours: storedConfig.intervalHours,
-              customTime: storedConfig.customTime,
-              privacyMode: storedPrivacy,
-              lastScheduledTimestamp: storedLastScheduled,
             }
           : {
               ...INITIAL_STATE,
-              scheduleType: storedConfig.scheduleType,
-              notificationIntervalHours: storedConfig.intervalHours,
-              customTime: storedConfig.customTime,
-              privacyMode: storedPrivacy,
-              lastScheduledTimestamp: storedLastScheduled,
             };
 
         resolvedState = checkUnlockCondition(resolvedState);
@@ -238,9 +224,6 @@ export function useProtocolState() {
       granted: boolean,
       answersOverride?: ProtocolAnswers
     ) => {
-      await saveScheduleConfig(scheduleConfig);
-      await savePrivacyMode(privacyMode);
-
       const effectiveAnswers = answersOverride || stateRef.current.answers;
 
       // Extract non-empty answer texts from 6 questions and sync to notes
@@ -310,9 +293,6 @@ export function useProtocolState() {
       };
       const privacy = privacyMode !== undefined ? privacyMode : stateRef.current.privacyMode;
 
-      await saveScheduleConfig(config);
-      await savePrivacyMode(privacy);
-
       // Sync updated answers into notes
       const answerEntries = Object.values(newAnswers).filter(
         (text) => Boolean(text && text.trim().length > 0)
@@ -370,13 +350,62 @@ export function useProtocolState() {
   }, [cancelAllNotifications]);
 
   /**
-   * Archive session: retains data as locked/unlocked review.
+   * Re-lock protocol from UNLOCKED phase using existing answers and schedule config.
+   * Keeps answers/notes intact, reuses previous schedule config & privacyMode,
+   * calculates new lockTimestamp (now) and unlockTimestamp,
+   * reschedules notification queue from scratch, and transitions phase to 'LOCKED'.
    */
-  const archiveProtocol = useCallback(async () => {
+  const relockProtocol = useCallback(async () => {
+    const current = stateRef.current;
+    const now = Date.now();
+
+    const config: NotificationScheduleConfig = {
+      scheduleType: current.scheduleType || 'interval',
+      intervalHours: current.notificationIntervalHours || 12,
+      customTime: current.customTime || '21:00',
+    };
+    const privacy = current.privacyMode ?? false;
+
+    let unlockTime: number;
+    if (config.scheduleType === 'specific_time') {
+      unlockTime = getNextReminderTimestamp(config, now);
+    } else {
+      const intervalMs = (config.intervalHours || 12) * 60 * 60 * 1000;
+      unlockTime = now + intervalMs;
+    }
+
+    // Ensure notes exist in storage
+    let storedNotes = await getNotes();
+    if (storedNotes.length === 0) {
+      const answerEntries = Object.values(current.answers).filter(
+        (text) => Boolean(text && text.trim().length > 0)
+      );
+      if (answerEntries.length > 0) {
+        storedNotes = answerEntries.map((text, idx) => ({
+          id: `${Date.now().toString(36)}-${idx}`,
+          text: text.trim(),
+          createdAt: Date.now() - (answerEntries.length - idx) * 1000,
+        }));
+        await saveNotes(storedNotes);
+      }
+    }
+
+    // Reschedule rotating notifications
+    let scheduledIds: string[] = [];
+    if (storedNotes.length > 0) {
+      scheduledIds = await scheduleRotatingRealityChecks(storedNotes, config, privacy);
+    }
+
+    const permissionGranted = scheduledIds.length > 0 || current.notificationPermissionGranted;
+
     updateAndPersist((prev) => ({
       ...prev,
-      phase: 'UNLOCKED',
-      scheduledNotificationIds: [],
+      phase: 'LOCKED',
+      lockTimestamp: now,
+      unlockTimestamp: unlockTime,
+      lastScheduledTimestamp: now,
+      notificationPermissionGranted: permissionGranted,
+      scheduledNotificationIds: scheduledIds,
     }));
   }, [updateAndPersist]);
 
@@ -401,6 +430,6 @@ export function useProtocolState() {
     saveLockedAnswers,
     unlockProtocol,
     burnProtocol,
-    archiveProtocol,
+    relockProtocol,
   };
 }

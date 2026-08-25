@@ -24,7 +24,7 @@ export default function App() {
     saveLockedAnswers,
     unlockProtocol,
     burnProtocol,
-    archiveProtocol,
+    relockProtocol,
   } = useProtocolState();
 
   // Local state for locked vault edit mode
@@ -172,7 +172,10 @@ export default function App() {
             answers={state.answers}
             onViewIntro={() => setPhase('ONBOARDING')}
             onBurnData={burnProtocol}
-            onArchiveSession={archiveProtocol}
+            onLock={relockProtocol}
+            currentScheduleConfig={currentScheduleConfig}
+            currentPrivacyMode={state.privacyMode}
+            onActivateSchedule={handleActivateSchedule}
           />
         );
 

@@ -60,7 +60,7 @@ src/
 │   ├── EditingScreen.tsx    # Multi-step focus question flow
 │   ├── LockSetupModal.tsx   # Cooldown duration picker (24h, 48h, Custom) + daily reminder time picker
 │   ├── LockedScreen.tsx     # The Vault screen with active countdown, readiness banner & edit entry point
-│   └── UnveilScreen.tsx     # Read-only review with Burn / Archive actions
+│   └── UnveilScreen.tsx     # Read-only review with Clear Mind / Lock actions
 └── App.tsx                  # Root navigator / State Switcher
 ```
 
@@ -256,8 +256,8 @@ This same screen (or a shared component) is reused as the **edit view during LOC
 - Content: vertical scrollable list displaying all 6 questions with the user's answers rendered inside read-only, high-contrast cards.
 
 **Bottom fixed action bar:**
-- **"Clear Mind (Burn Data)"** (destructive style): prompts confirmation dialog ("Burn All Records? This action is permanent and clears all local data."). On confirmation: wipes storage, cancels all pending notifications (including any still-scheduled daily reminders), and resets app to `ONBOARDING`.
-- **"Archive Session"** (secondary style): keeps the session safely accessible in read-only state for ongoing grounding. Also cancels any still-pending notifications tied to this session (they're no longer relevant once unlocked).
+- **"Clear Mind"** (destructive style): prompts confirmation dialog ("Burn All Records? This action is permanent and clears all local data."). On confirmation: wipes storage, cancels all scheduled notifications, resets all protocol state, and returns app to `ONBOARDING`.
+- **"Lock"** (secondary style): re-locks the vault using the existing answers and previous schedule settings without asking the user to refill the questions. Re-calculates a fresh cooldown timer (`lockTimestamp = Date.now()`), reschedules the rotating notification queue from scratch, and transitions state to `LOCKED`.
 
 ---
 
